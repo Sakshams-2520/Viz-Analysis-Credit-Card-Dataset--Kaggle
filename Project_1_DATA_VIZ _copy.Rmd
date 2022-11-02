@@ -1,0 +1,264 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  #UCI database:https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients
+---
+
+```{r message=FALSE}
+##Importing and installing the pertinent libraries
+install.packages("viridis", "hrbrthemes")
+library(viridis)
+library(hrbrthemes)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(corrplot)
+library(gridExtra)
+library(ggalluvial)
+library(tinytex)
+```
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Reading excel file
+Credit=read_xls(file.choose(),skip = 1)
+##Credit=read_xls('credit.xls', skip=1)
+df_orig = Credit
+```
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Removing impertinent columns and data
+Credit= select(Credit, -ID)
+Credit[Credit == -1 | Credit == -2] <- 0
+
+```
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Checking for null values
+which(is.na(Credit))
+which(anyNA.data.frame(Credit))
+```
+
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Renaming columns for clear understanding
+Credit=rename(Credit,PAY_1=PAY_0)
+Credit=rename(Credit,Bill_in_sept=BILL_AMT1,Bill_in_aug=BILL_AMT2,Bill_in_july=BILL_AMT3,Bill_in_jun=BILL_AMT4,Bill_in_may=BILL_AMT5,Bill_in_apr=BILL_AMT6)
+
+Credit=rename(Credit,Repayment_in_sept=PAY_1,Repayment_in_aug=PAY_2,Repayment_in_july=PAY_3,Repayment_in_jun=PAY_4,Repayment_in_may=PAY_5,Repayment_in_apr=PAY_6)
+
+Credit=rename(Credit,PAY_AMT_SEPT=PAY_AMT1,PAY_AMT_AUG=PAY_AMT2,PAY_AMT_JULY=PAY_AMT3,PAY_AMT_JUN=PAY_AMT4,PAY_AMT_MAY=PAY_AMT5,PAY_AMT_APR=PAY_AMT6)
+```
+
+
+
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Converting Numerical attribute sex to categorical(1='M',2='F')
+Male=mutate(Credit[which(Credit$SEX==1),], SEX='M') %>% data.frame()
+Female=mutate(Credit[which(Credit$SEX==2),], SEX='F') %>%  data.frame()
+Credit=full_join(Male, Female)
+```
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+##Removing the unknown data as it represents only 1.03 % of the total data and converting the numerical to string categorical data(1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)
+Credit= Credit[-which(Credit$EDUCATION==5),]
+Credit=Credit[-which(Credit$EDUCATION==0),]
+Credit= Credit[-which(Credit$EDUCATION==6),]
+
+
+
+
+Grad_School=mutate(Credit[which(Credit$EDUCATION==1),], EDUCATION='Grad School') %>% data.frame()
+University=mutate(Credit[which(Credit$EDUCATION==2),], EDUCATION='University') %>% data.frame()
+High_School= mutate(Credit[which(Credit$EDUCATION==3),], EDUCATION='High School') %>% data.frame()
+Other= mutate(Credit[which(Credit$EDUCATION==4),], EDUCATION='Other') %>% data.frame()
+
+Partial_Join=full_join(Grad_School,University)
+Partial_Join1=full_join(Partial_Join,High_School)
+Credit=full_join(Partial_Join1,Other)
+
+
+```
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+
+##Converting numerical to categorical string values (1=married, 2=single, 3=others)
+Married=mutate(Credit[which(Credit$MARRIAGE==1),], MARRIAGE='Married') %>% data.frame()
+Single=mutate(Credit[which(Credit$MARRIAGE==2),], MARRIAGE='Single') %>% data.frame()
+Other= mutate(Credit[which(Credit$MARRIAGE==3),], MARRIAGE='Others') %>% data.frame()
+
+Join=full_join(Married, Single)
+Credit=full_join(Join,Other)
+```
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+Credit_Education= table(Credit$EDUCATION) %>% data.frame()
+ ggplot(data=Credit_Education, aes(x=Var1, y=Freq,fill=Var1))+
+  geom_bar(stat="identity")+
+  geom_text(aes(label=Freq), vjust=1.6, color="black", size=3.5)+
+  labs(fill = "Education")
+
+
+```
+
+This graph delineates the different types of education qualifications of the people in the dataset. University graduates are the higest in number with 14024, followed by grad school and high school. The fourth category 'others' represents  the the poeple who didnt disclose their educatoion qualification and people who havent studied till high school
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+
+options(scipen = 100000)
+
+plotdata <- Credit %>% 
+  select(AGE,LIMIT_BAL,SEX) %>% 
+  group_by(AGE, SEX) %>%
+  summarise(AGE= mean(AGE, na.rm=T),
+            LIMIT_BAL = mean(LIMIT_BAL, na.rm=T)) 
+
+plotdata$AGE <- as.factor(plotdata$AGE)
+plotdata$SEX <- as.factor(plotdata$SEX)
+
+plotdata$SEX[plotdata$SEX == "1"] = 'M'
+plotdata$SEX[plotdata$SEX == "2"] = 'F'
+
+plotdata$AGE <- as.numeric(plotdata$AGE)
+
+ggplot(plotdata, aes(x=AGE, y= LIMIT_BAL, fill=SEX), width=200)+  
+     geom_area() +
+     scale_fill_viridis(discrete = T) +
+     ggtitle("Balance Limit for Males and Females over duration of existence") +
+  scale_fill_manual("Legend", values = c('M' = "#F8766D", 'F' = "#00BFC4"))+
+  ylab("Credit Limit") +
+  xlab("Age") +
+  scale_fill_discrete(labels = c("Female", "Male"))
+ 
+```
+
+This area plot shows the Credit limit distribution over age. It also differentiates between the sex which shows that the distribution of both males and females is almost identitical -- Between the age 20 and 30, it rises, post 30 until 60, it steadily decreases and post 60 we see a sharp rise followed by a steep fall
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+xyz <- Credit %>% subset(MARRIAGE!= "Others")%>% select(AGE,LIMIT_BAL,MARRIAGE)%>%group_by(AGE, MARRIAGE) %>%
+  summarise(mean_bal = mean(LIMIT_BAL))
+ggplot(xyz, aes(x <- AGE, fill = MARRIAGE,
+                 y = ifelse(test = MARRIAGE == "Married",
+                            yes = -mean_bal, no = mean_bal))) + 
+  geom_bar(stat = "identity", width = 1) +
+  scale_fill_manual("legend", values = c("Married" = "#FF8C00", "Single" = "Blue"))+
+  scale_y_continuous(labels = abs, limits = max(xyz$mean_bal) * c(-1,1)) +
+  coord_flip() + scale_x_reverse() + labs(x = "AGE", y = " Credit Limit Balance")
+
+```
+
+The following pyramid graph illustrates the credit limit distribution over Marital status and Age. We see that the distribution of credit limit is similar to the above graph, however, it can aslo be observed that married individuals get a better credit limit comparitively than the single individuals
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+
+data <- df_orig 
+names(data)[dim(data)[2]] <- "default"
+data <- data %>%
+  group_by(default) %>%
+  summarise("count" = n())
+
+data$default[data$default==0] <- "Non Default"
+data$default[data$default==1] <- "Default"
+
+data$count <- as.numeric(data$count)
+
+ggplot(data, aes(x=default, y=count)) +
+  geom_point() + 
+  geom_segment( aes(x=default, xend=default, y=0, yend=count))+
+  labs(x="Default Status",
+       y="Count",
+       title="Dataset distribution between defaulters and non defaulters")+
+  annotate("text", 
+           label = "Imbalanced dataset", size = 7, x=1.2, y=20000,
+           fontface="bold")+
+  geom_text(aes(label=count), hjust = -0.3)
+
+```
+
+This lollipop chart shows distribution between the default and non default entries. It can be observed that we have more number of non defaulters than the defaulters
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+Credit$Mean_Payment <- rowMeans(Credit[,18:23])
+Credit$Mean_Bill <- rowMeans(Credit[,12:17])
+x=select(Credit, PAY_AMT_SEPT,PAY_AMT_AUG,PAY_AMT_JULY,PAY_AMT_JUN,PAY_AMT_MAY,PAY_AMT_APR)
+Credit %>% ggplot() +geom_point(aes(x = Mean_Bill, y =Mean_Payment ,colour = SEX))
+```
+
+The following plot delineate that men tend to repay less of their credit debt, unlike women, who generally pay more of their credit card debt.
+
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+df <- df_orig
+corval <- cor(df)
+#corrplot(corval, method = "square")
+#corrplot(corval, method = "circle")
+corrplot(corval, method = "color", title = "Correlation plot of all the features",mar=c(0,0,1,0),label_size = 3, addCoef.col="black",order = "AOE", number.cex=0.5, number.font=.6,cex.var=0.7,cex.col=0.1,type='lower',tl.col="black", tl.srt=45,t1.cex=.4,pch.cex = 1)
+
+```
+
+Plotting the correlation between various features to observe which features are contributing to the default attribute. It can be seen that the features 'PAY_X' that are colored in blue contributes the most towards default attribute
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+
+
+df <- df_orig
+
+df$EDUCATION <- as.character(df$EDUCATION)
+
+names(df)[25] <- "default_y"
+
+df$EDUCATION[df$EDUCATION == "1"] = "Graduate School"
+df$EDUCATION[df$EDUCATION == "2"] = "University"
+df$EDUCATION[df$EDUCATION == "3"] = "High School"
+df$EDUCATION[df$EDUCATION == "4" | df$EDUCATION == "5" | df$EDUCATION == "6" |
+               df$EDUCATION == "0"] = "Others"
+
+pivoter <- df %>%
+  group_by(SEX, EDUCATION, default_y) %>%
+  summarise("freq" = n())
+
+pivoter$default_y <- as.character(pivoter$default_y)
+pivoter$default_y[pivoter$default_y == '0'] = "Non Default"
+pivoter$default_y[pivoter$default_y == '1'] = "Default"
+
+pivoter$SEX <- as.character(pivoter$SEX)
+pivoter$SEX[pivoter$SEX == '1'] = "Male"
+pivoter$SEX[pivoter$SEX == '2'] = "Female"
+
+is_alluvia_form(pivoter)
+
+ggplot((pivoter),
+       aes(y = pivoter$freq, axis1 = pivoter$SEX, axis2 = pivoter$EDUCATION, axis3 = pivoter$default_y))+
+  geom_alluvium(aes(fill = SEX), width = 1/12) +
+  geom_stratum(width = 1/12, fill = "black", color = "grey") + 
+  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Gender", "Education", "Default Status"), expand = c(.05, .05))+
+  scale_fill_brewer(type = "qual", palette = "Set1")+
+  labs(y = "", title = "Sex - Education - Defaulters Alluvial diagram ")
+
+```
+
+In this alluvial chart we can compare the defaulters status based on sex along with their educational qualifications. The pink line refers to the female individuals whereas the males are being represented by the blue line. The changing width of the line depics the no. of the individuals
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE}
+
+
+options(scipen = 100000)
+Credit$Mean_Repayment <- rowMeans(Credit[,16:22])
+plt1=Credit %>% ggplot() +geom_col(aes(x = AGE, y =Mean_Repayment ,fill = EDUCATION))
+plt1
+```
+
+The graphs represent the repayment of credit card debt by people of different age group and Education. People of the age group 25-35 has the highest credit card debt to repayment ratio. A reason might be Higher tuition and less money accessible for monetary aid make numerous youths go to credit cards as a simple elective hot-spot for cash. Combined with a dreary occupation market, this increasing debt burden could mean monetary difficulty for youngsters before they have even found an everyday line of works
+
